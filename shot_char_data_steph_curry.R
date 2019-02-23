@@ -1,46 +1,36 @@
+# install.packages("rjson")
+# install.packages("jpeg")
+# install.packages("grid")
+# install.packages("RCurl")
 library(rjson)
 library(jpeg)
 library(grid)
 library(ggplot2)
 library(RCurl)
+library(tidyverse)
+library(dplyr)
+library(moderndive)
 # shot data for Stephen Curry
 playerID <- 201939
-shotURL <- paste("http://stats.nba.com/stats/shotchartdetail?CFID=33&CFPARAMS=2014-15&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerID=",playerID,"&PlayerPosition=&PlusMinus=N&Position=&Rank=N&RookieYear=&Season=2014-15&SeasonSegment=&SeasonType=Regular+Season&TeamID=0&VsConference=&VsDivision=&mode=Advanced&showDetails=0&showShots=1&showZones=0", sep = "")
+shotURL <- paste("https://stats.nba.com/stats/shotchartdetail?CFID=33&CFPARAMS=2018-19&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerID=",playerID,"&PlayerPosition=&PlusMinus=N&Position=&Rank=N&RookieYear=&Season=2018-19&SeasonSegment=&SeasonType=Regular+Season&TeamID=0&VsConference=&VsDivision=&mode=Advanced&showDetails=0&showShots=1&showZones=0", sep = "")
 # import from JSON
 shotData <- fromJSON(file = shotURL, method="C")
-
 # unlist shot data, save into a data frame
-shotDataf <- data.frame(matrix(unlist(shotData$resultSets[[1]][[3]]), ncol=24, byrow = TRUE))
+curry_data_18_19 <- data.frame(matrix(unlist(shotData$resultSets[[1]][[3]]), ncol=24, byrow = TRUE))
 
 # shot data headers
-colnames(shotDataf) <- shotData$resultSets[[1]][[2]]
+colnames(curry_data_18_19) <- shotData$resultSets[[1]][[2]]
 
 # covert x and y coordinates into numeric
-shotDataf$LOC_X <- as.numeric(as.character(shotDataf$LOC_X))
-shotDataf$LOC_Y <- as.numeric(as.character(shotDataf$LOC_Y))
-shotDataf$SHOT_DISTANCE <- as.numeric(as.character(shotDataf$SHOT_DISTANCE))
+curry_data_18_19$LOC_X <- as.numeric(as.character(curry_data_18_19$LOC_X))
+curry_data_18_19$LOC_Y <- as.numeric(as.character(curry_data_18_19$LOC_Y))
+curry_data_18_19$SHOT_DISTANCE <- as.numeric(as.character(curry_data_18_19$SHOT_DISTANCE))
 
-# have a look at the data
-View(shotDataf)
+# View(curry_data_18_19)
 
 # simple plot using EVENT_TYPE to colour the dots
-ggplot(shotDataf, aes(x=LOC_X, y=LOC_Y)) +
-  geom_point(aes(colour = EVENT_TYPE))
-
-index2 = 0
-index3 = 0
-index = 1
-for (index in 1:1341) {
-  if (shotDataf$SHOT_TYPE[index] == ("2PT Field Goal")) {
-    index2 = index2 + 1
-  } 
-  if (shotDataf$SHOT_TYPE[index] == ("3PT Field Goal")) {
-    index3= index3 + 1
-  }
-}
-index2
-index3
-index
+# ggplot(curry_data_18_19, aes(x=LOC_X, y=LOC_Y)) +
+# geom_point(aes(colour = EVENT_TYPE))
 
 # half court image
 courtImg.URL <- "https://thedatagame.files.wordpress.com/2016/03/nba_court.jpg"
@@ -48,113 +38,61 @@ court <- rasterGrob(readJPEG(getURLContent(courtImg.URL)),
                     width=unit(1,"npc"), height=unit(1,"npc"))
 
 # plot using NBA court background and colour by shot zone
-ggplot(main = "Steph Curry's Shot Chart 14-15", shotDataf, aes(x=LOC_X, y=LOC_Y)) + 
+ggplot(main = "Steph Curry's Shot Chart 18-19", curry_data_18_19, aes(x=LOC_X, y=LOC_Y, color = EVENT_TYPE)) + 
   annotation_custom(court, -250, 250, -50, 420) +
-  geom_point(aes(colour = EVENT_TYPE, shape = SHOT_TYPE)) +
+  geom_point() +
+  xlim(-250, 250) +
+  ylim(-50, 420)
+
+made_curry_data_18_19 <- curry_data_18_19 %>% filter(EVENT_TYPE == "Made Shot")
+
+ggplot(main = "Steph Curry's Made Shot Chart 18-19", made_curry_data_18_19, aes(x=LOC_X, y=LOC_Y, color = SHOT_TYPE)) + 
+  annotation_custom(court, -250, 250, -50, 420) +
+  geom_point() +
+  xlim(-250, 250) +
+  ylim(-50, 420)
+
+made_curry_data_by_zone_18_19 <- made_curry_data_18_19 %>% group_by(SHOT_ZONE_BASIC)
+# View(made_curry_data_by_zone_18_19)
+# changing above the break three into top of key, left wing, and right wing
+made_curry_data_top_key_three_18_19 <- made_curry_data_by_zone_18_19 %>% filter(SHOT_ZONE_BASIC == "Above the Break 3")
+# View(made_curry_shots_top_key_three_18_19)
+
+# preferred plot for showing different zones
+ggplot(main = "Steph Curry's Shot Chart 18-19 by Zone", made_curry_data_18_19 %>% group_by(SHOT_ZONE_BASIC), aes(x=LOC_X, y=LOC_Y, color = SHOT_ZONE_BASIC)) + 
+  annotation_custom(court, -250, 250, -50, 420) +
+  geom_point() +
   xlim(-250, 250) +
   ylim(-50, 420)
 
 
-# 15-16
-playerID <- 201939
-shotURL <- paste("https://stats.nba.com/stats/shotchartdetail?CFID=33&CFPARAMS=2015-16&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerID=201939&PlayerPosition=&PlusMinus=N&Position=&Rank=N&RookieYear=&Season=2015-16&SeasonSegment=&SeasonType=Regular+Season&TeamID=0&VsConference=&VsDivision=&mode=Advanced&showDetails=0&showShots=1&showZones=0", sep = "")
-# import from JSON
-shotData <- fromJSON(file = shotURL, method="C")
-
-# unlist shot data, save into a data frame
-shotData15_16 <- data.frame(matrix(unlist(shotData$resultSets[[1]][[3]]), ncol=24, byrow = TRUE))
-
-# shot data headers
-colnames(shotData15_16) <- shotData$resultSets[[1]][[2]]
-
-# covert x and y coordinates into numeric
-shotData15_16$LOC_X <- as.numeric(as.character(shotData15_16$LOC_X))
-shotData15_16$LOC_Y <- as.numeric(as.character(shotData15_16$LOC_Y))
-shotData15_16$SHOT_DISTANCE <- as.numeric(as.character(shotData15_16$SHOT_DISTANCE))
-
-# have a look at the data
-View(shotData15_16)
-
-# simple plot using EVENT_TYPE to colour the dots
-ggplot(shotData15_16, aes(x=LOC_X, y=LOC_Y)) +
-  geom_point(aes(colour = EVENT_TYPE))
-
-index2 = 0
-index3 = 0
-index = 1
-for (index in 1:1596) {
-  if (shotData15_16$SHOT_TYPE[index] == ("2PT Field Goal")) {
-    index2 = index2 + 1
+i = 1
+for (i in 1:nrow(made_curry_data_top_key_three_18_19)) {
+  if (made_curry_data_top_key_three_18_19$SHOT_ZONE_AREA[i] == "Left Side Center(LC)") {
+  made_curry_data_top_key_three_18_19$SHOT_ZONE_BASIC[i] <- as.character("Left Wing 3")
+  } else if (made_curry_data_top_key_three_18_19$SHOT_ZONE_AREA[i] == "Right Side Center(RC)") {
+  made_curry_data_top_key_three_18_19$SHOT_ZONE_BASIC[i] <- as.character("Right Wing 3")
   } 
-  if (shotData15_16$SHOT_TYPE[index] == ("3PT Field Goal")) {
-    index3= index3 + 1
-  }
 }
-index2
-index3
-index
 
-# half court image
-courtImg.URL <- "https://thedatagame.files.wordpress.com/2016/03/nba_court.jpg"
-court <- rasterGrob(readJPEG(getURLContent(courtImg.URL)),
-                    width=unit(1,"npc"), height=unit(1,"npc"))
+# View(made_curry_data_top_key_three_18_19)
 
-# plot using NBA court background and colour by make/miss, shape by 2/3
-ggplot(main = "Steph Curry's Shot Chart 15-16", shotData15_16, aes(x=LOC_X, y=LOC_Y)) + 
+# made_curry_shots_top_key_three_18_19$SHOT_ZONE_BASIC <- factor(made_curry_shots_top_key_three_18_19$SHOT_ZONE_BASIC)
+# made_curry_shots_top_key_three_18_19$SHOT_ZONE_BASIC[made_curry_shots_top_key_three_18_19$SHOT_ZONE_AREA == "Left Side Center(LC)"] <- "Left Wing 3"
+
+# made_curry_data_by_zone_and_grouped_18_19 %>% summarize(mean_x = mean(LOC_X), mean_y = mean(LOC_Y), sd_x = sd(LOC_X), sd_y = sd(LOC_Y))
+
+ggplot(main = "Steph Curry's Shot Chart 18-19 by Zone", made_curry_data_by_zone_and_grouped_18_19, aes(x=mean_x, y=mean_y)) + 
   annotation_custom(court, -250, 250, -50, 420) +
-  geom_point(aes(colour = EVENT_TYPE, shape = SHOT_TYPE)) +
+  geom_point() +
   xlim(-250, 250) +
   ylim(-50, 420)
 
-# 18-19
-playerID <- 201939
-shotURL <- paste("https://stats.nba.com/stats/shotchartdetail?CFID=33&CFPARAMS=2018-19&ContextFilter=&ContextMeasure=FGA&DateFrom=&DateTo=&GameID=&GameSegment=&LastNGames=0&LeagueID=00&Location=&MeasureType=Base&Month=0&OpponentTeamID=0&Outcome=&PaceAdjust=N&PerMode=PerGame&Period=0&PlayerID=201939&PlayerPosition=&PlusMinus=N&Position=&Rank=N&RookieYear=&Season=2018-19&SeasonSegment=&SeasonType=Regular+Season&TeamID=0&VsConference=&VsDivision=&mode=Advanced&showDetails=0&showShots=1&showZones=0", sep = "")
-# import from JSON
-shotData <- fromJSON(file = shotURL, method="C")
+# can i predict probability of making a shot based only on location and type of shot?
 
-# unlist shot data, save into a data frame
-shotData18_19 <- data.frame(matrix(unlist(shotData$resultSets[[1]][[3]]), ncol=24, byrow = TRUE))
+curry_regression <- (glm(SHOT_MADE_FLAG ~ SHOT_ZONE_BASIC * ACTION_TYPE, data = curry_data_18_19, family = "binomial"))
 
-# shot data headers
-colnames(shotData18_19) <- shotData$resultSets[[1]][[2]]
+(summary(curry_regression))
 
-# covert x and y coordinates into numeric
-shotData18_19$LOC_X <- as.numeric(as.character(shotData18_19$LOC_X))
-shotData18_19$LOC_Y <- as.numeric(as.character(shotData18_19$LOC_Y))
-shotData18_19$SHOT_DISTANCE <- as.numeric(as.character(shotData18_19$SHOT_DISTANCE))
-
-# have a look at the data
-View(shotData18_19)
-
-# simple plot using EVENT_TYPE to colour the dots
-ggplot(shotData18_19, aes(x=LOC_X, y=LOC_Y)) +
-  geom_point(aes(colour = EVENT_TYPE))
-
-index2 = 0
-index3 = 0
-index = 1
-for (index in seq_along(shotData18_19)) {
-  if (shotData18_19$SHOT_TYPE[index] == ("2PT Field Goal")) {
-    index2 = index2 + 1
-  } 
-  if (shotData18_19$SHOT_TYPE[index] == ("3PT Field Goal")) {
-    index3= index3 + 1
-  }
-}
-index2
-index3
-index
-
-# half court image
-courtImg.URL <- "https://thedatagame.files.wordpress.com/2016/03/nba_court.jpg"
-court <- rasterGrob(readJPEG(getURLContent(courtImg.URL)),
-                    width=unit(1,"npc"), height=unit(1,"npc"))
-
-# plot using NBA court background and colour by make/miss, shape by 2/3
-ggplot(main = "Steph Curry's Shot Chart 18-19", shotData18_19, aes(x=LOC_X, y=LOC_Y)) + 
-  annotation_custom(court, -250, 250, -50, 420) +
-  geom_point(aes(colour = EVENT_TYPE, shape = SHOT_TYPE)) +
-  xlim(-250, 250) +
-  ylim(-50, 420)
-
-
+anova(curry_regression)
+curry_regression1 <- !is.na(curry_regression)
