@@ -34,7 +34,7 @@ luther_muhammad_comparison <- on_off_generator("LUTHER.MUHAMMAD", lineups)
 # View(luther_muhammad_comparison)
 luther_muhammad_w_kaleb_wesson_comparison <- on_off_generator("LUTHER.MUHAMMAD", lineups, Included = c("KALEB.WESSON"))
 ggplot(luther_muhammad_comparison, aes(x = Status, y = NETEFF, fill = Mins)) + geom_bar(stat="identity")
-
+ 
 # how can i find the best 5 man lineup?
 lineups %>% 
   filter(Mins >= 20, Team == "Ohio St.") %>% 
