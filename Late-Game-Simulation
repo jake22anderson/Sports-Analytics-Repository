@@ -1,0 +1,1421 @@
+---
+title: "Late-Game NBA Simulation: How Different Shots Impact Win Probability"
+author: "Jacob Anderson, Max Levitt, and Armando Martin"
+date: "4/20/2019"
+output: html_document
+---
+
+# Setup
+
+```{r Packages}
+library(spatstat.utils)
+library(fitdistrplus)
+library(dplyr)
+library(readxl)
+library(data.table)
+library(tidyverse)
+library(ballr)
+library(truncnorm)
+```
+
+# Data Entry
+
+```{r Load_Data}
+nba_shot_clock <- read_excel("nba_advanced_reg_stats.xlsx", sheet = "Shot Clock Numbers")
+# View(nba_shot_clock)
+```
+
+# Data Setup
+
+```{r Shot_clock_dataframe_distribution}
+very_early_shot_clock_22 <- nba_shot_clock %>% filter(SHOT_CLOCK_RANGE == "22-24")
+early_shot_clock_18 <- nba_shot_clock %>% filter(SHOT_CLOCK_RANGE == "18-22")
+little_early_shot_clock_15 <- nba_shot_clock %>% filter(SHOT_CLOCK_RANGE == "15-18")
+average_shot_clock_7 <- nba_shot_clock %>% filter(SHOT_CLOCK_RANGE == "7-15")
+late_shot_clock_4 <- nba_shot_clock %>% filter(SHOT_CLOCK_RANGE == "4-7")
+very_late_shot_clock_0 <- nba_shot_clock %>% filter(SHOT_CLOCK_RANGE == "0-4")
+# View(very_early_shot_clock_22)
+mean_shot_freq_very_early_shot_clock_22 <- mean(very_early_shot_clock_22$FREQ)
+mean_shot_freq_early_shot_clock_18 <- mean(early_shot_clock_18$FREQ)
+mean_shot_freq_little_early_shot_clock_15 <- mean(little_early_shot_clock_15$FREQ)
+mean_shot_freq_average_shot_clock_7 <- mean(average_shot_clock_7$FREQ)
+mean_shot_freq_late_shot_clock_4 <- mean(late_shot_clock_4$FREQ)
+mean_shot_freq_very_late_shot_clock_0 <- mean(very_late_shot_clock_0$FREQ)
+x <- data.frame(c("22-24", "18-22", "15-18", "7-15", "4-7", "0-4"), c(mean_shot_freq_very_early_shot_clock_22, mean_shot_freq_early_shot_clock_18, mean_shot_freq_little_early_shot_clock_15, mean_shot_freq_average_shot_clock_7, mean_shot_freq_late_shot_clock_4, mean_shot_freq_very_late_shot_clock_0), c("Very Early", "Early", "Slightly Early", "Average", "Late", "Very Late"))
+colnames(x)[1] = "Shot_Clock_Range"
+colnames(x)[2] = "Mean_Shot_Frequency"
+colnames(x)[3] = "Categorial_Range"
+mean_shot_freq_at_shot_clock <- x
+```
+
+```{r Relative_Frequency_Dataframe_For_Shot_Clock}
+# requires mean_shot_freq_at_shot_clock, which can be found in Shot_clock_dataframe_distribution
+sc_NA_rf <- data.frame("NA", 0)
+colnames(sc_NA_rf)[1] = "Shot_Clock_Range"
+colnames(sc_NA_rf)[2] = "Mean_Shot_Frequency"
+sc_22_rf <- data.frame("22-24", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency))
+colnames(sc_22_rf)[1] = "Shot_Clock_Range"
+sc_18_rf <- data.frame("18-22", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency))
+colnames(sc_18_rf)[1] = "Shot_Clock_Range"
+sc_15_rf <- data.frame("15-18", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency))
+colnames(sc_15_rf)[1] = "Shot_Clock_Range"
+sc_7_rf <- data.frame("7-15", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% dplyr::select(Mean_Shot_Frequency))
+colnames(sc_7_rf)[1] = "Shot_Clock_Range"
+sc_4_rf <- data.frame("4-7", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "4-7") %>% dplyr::select(Mean_Shot_Frequency))
+colnames(sc_4_rf)[1] = "Shot_Clock_Range"
+sc_0_rf <- data.frame("0-4", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "4-7") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "0-4") %>% dplyr::select(Mean_Shot_Frequency))
+colnames(sc_0_rf)[1] = "Shot_Clock_Range"
+
+Relative_freq_sc <- rbind(sc_NA_rf, sc_22_rf, sc_18_rf, sc_15_rf, sc_7_rf, sc_4_rf, sc_0_rf)
+# View(Relative_freq_sc)
+```
+
+```{r All_FG_Stats_For_Shot_Clock_Ranges}
+mean_fg_stats <- nba_shot_clock %>% group_by(SHOT_CLOCK_RANGE) %>% summarize(mean(`X2FG FREQ`), mean(`X2FG%`), mean(`X3FG FREQ`), mean(`X3P%`))
+colnames(mean_fg_stats)[2] = "Two-Point Shot Frequency"
+colnames(mean_fg_stats)[3] = "Two-Point Shot Percentage"
+colnames(mean_fg_stats)[4] = "Three-Point Shot Frequency"
+colnames(mean_fg_stats)[5] = "Three-Point Shot Percentage"
+View(mean_fg_stats)
+```
+
+```{r FT_percentage}
+
+  player_ft <- NBAPerGameStatistics(season = 2019) %>% dplyr::select(ft, fta, g)
+  player_ft <- player_ft %>% mutate(totalFTA = fta * g, totalFTM = ft * g)
+  player_total_ft_2018 <- player_ft %>% summarize(sum(totalFTM), sum(totalFTA))
+  average_ft_perc <- player_total_ft_2018$`sum(totalFTM)`/player_total_ft_2018$`sum(totalFTA)`
+
+
+```
+
+# Controlled Single Possession Functions
+
+```{r }
+# Teams should foul whenever they are losing with less than 24 seconds left in the game. 
+
+```
+
+```{r Making_rf_for_shot_clock_elapsed} 
+Making_new_relative_frequency_table_for_shot_clock_elapsed <- function(nba_shot_clock_input, time_left_in_game_input) {
+  time_left_on_shot_clock <- 16
+  upper_lower_bounds_of_ranges_elapsed <- nba_shot_clock_input %>% filter(time_left_in_game_input >= `Lower bound`) %>% group_by(SHOT_CLOCK_RANGE, `Lower bound`, `upper bound`) %>% summarize(mean(FREQ))
+  alt_rf_sc_elapsed <- data.frame("NA", 0)
+  colnames(alt_rf_sc_elapsed)[1] = "Shot_Clock_Range"
+  colnames(alt_rf_sc_elapsed)[2] = "Mean_Shot_Frequency"
+  i = 1
+  for (i in 1:(nrow(upper_lower_bounds_of_ranges_elapsed))) {
+    temp_rf_elapsed <- data.frame(upper_lower_bounds_of_ranges_elapsed$SHOT_CLOCK_RANGE[i], alt_rf_sc_elapsed$Mean_Shot_Frequency[i] + upper_lower_bounds_of_ranges_elapsed$`mean(FREQ)`[i])
+    colnames(temp_rf_elapsed)[1] = "Shot_Clock_Range"
+    colnames(temp_rf_elapsed)[2] = "Mean_Shot_Frequency"
+    alt_rf_sc_elapsed <- rbind(alt_rf_sc_elapsed, temp_rf_elapsed)
+    temp_rf_elapsed <- NULL
+  }
+  return(alt_rf_sc_elapsed)
+}
+```
+
+```{r Making_new_relative_frequency_table_for_shot_clock_left}
+# called in single possession normal
+Making_new_relative_frequency_table_for_shot_clock <- function(nba_shot_clock_in, time_left_in_game_in) {
+  # View(nba_shot_clock)
+  # nba_shot_clock_in <- nba_shot_clock
+  # time_left_in_game_in <- 6
+  upper_lower_bounds_of_ranges <- nba_shot_clock_in %>% filter(time_left_in_game_in >= 24 - `Lower bound`) %>% group_by(SHOT_CLOCK_RANGE, `Lower bound`, `upper bound`) %>% summarize(mean(FREQ))
+  alt_rf_sc <- data.frame("NA", 0)
+  colnames(alt_rf_sc)[1] = "Shot_Clock_Range"
+  colnames(alt_rf_sc)[2] = "Mean_Shot_Frequency"
+  i = 1
+  x <- 2
+  y <- 0
+  for (i in 1:(nrow(upper_lower_bounds_of_ranges))) {
+    temp_rf <- data.frame(upper_lower_bounds_of_ranges$SHOT_CLOCK_RANGE[i], alt_rf_sc$Mean_Shot_Frequency[i] + upper_lower_bounds_of_ranges$`mean(FREQ)`[i])
+    colnames(temp_rf)[1] = "Shot_Clock_Range"
+    colnames(temp_rf)[2] = "Mean_Shot_Frequency"
+    alt_rf_sc <- rbind(alt_rf_sc, temp_rf)
+    temp_rf <- NULL
+  }
+  return(alt_rf_sc)
+}
+```
+
+```{r testing Making_new_relative_frequency_table_for_shot_clock, eval=FALSE, include=FALSE}
+# test 
+# time_left_in_game_x <- 10
+upper_lower_bounds_of_ranges_test <- nba_shot_clock %>% filter(time_left_in_game_x >= 24 - `Lower bound`) %>% group_by(SHOT_CLOCK_RANGE, `Lower bound`, `upper bound`) %>% summarize(mean(FREQ))
+  alt_rf_sc_test <- data.frame("NA", 0)
+  colnames(alt_rf_sc_test)[1] = "Shot_Clock_Range"
+  colnames(alt_rf_sc_test)[2] = "Mean_Shot_Frequency"
+  i = 1
+  x <- 2
+  y <- 0
+  for (i in 1:(nrow(upper_lower_bounds_of_ranges_test))) {
+    temp_rf_test <- data.frame(upper_lower_bounds_of_ranges_test$SHOT_CLOCK_RANGE[i], alt_rf_sc_test$Mean_Shot_Frequency[i] + upper_lower_bounds_of_ranges_test$`mean(FREQ)`[i])
+    colnames(temp_rf_test)[1] = "Shot_Clock_Range"
+    colnames(temp_rf_test)[2] = "Mean_Shot_Frequency"
+    alt_rf_sc_test <- rbind(alt_rf_sc_test, temp_rf_test)
+    temp_rf_test <- NULL
+  }
+```
+
+```{r Relative_Frequency_Dataframe_For_FGs}
+# requires ranged_fg, which can be found in Range_Specific_FG_Stats
+Making_Relative_Frequency_Dataframe_For_FGs <- function(ranged_fg_rf) {
+  fg2_rf <- data.frame("Two-Point Shot", ranged_fg_rf %>% dplyr::select(`Two-Point Shot Frequency`), ranged_fg_rf %>% dplyr::select(SHOT_CLOCK_RANGE))
+  colnames(fg2_rf)[1] = "Shot_Type"
+  colnames(fg2_rf)[2] = "Frequency"
+  fg3_rf <- data.frame("Three-Point Shot", ranged_fg_rf %>% dplyr::select(`Three-Point Shot Frequency`) + ranged_fg_rf %>% dplyr::select(`Two-Point Shot Frequency`), ranged_fg_rf %>% dplyr::select(SHOT_CLOCK_RANGE))
+  colnames(fg3_rf)[1] = "Shot_Type"
+  colnames(fg3_rf)[2] = "Frequency"
+  Relative_freq_fg <- rbind(fg2_rf, fg3_rf)
+  return(Relative_freq_fg)
+}
+```
+
+```{r Simulate_For_Time_Off_Clock}
+Simulate_For_Time_Off_Clock <- function(Relative_freq_sc_time_sim) {
+  random_num_for_sc_range_sim <- runif(1, 0, max(Relative_freq_sc_time_sim$Mean_Shot_Frequency))
+  return(random_num_for_sc_range_sim)
+}
+# runif(1, 0, max(Relative_freq_sc$Mean_Shot_Frequency))
+```
+
+```{r Finding_Categorical_SC_Time_Off}
+Finding_Categorical_SC_Time_Off <- function(random_num_for_sc_range_xxx, Relative_freq_sc_for_cat_sc_timeoff) {
+  range = NULL
+  lower = 1
+  upper = 2
+  for (upper in 2:nrow(Relative_freq_sc_for_cat_sc_timeoff)) {
+    if(inrange(random_num_for_sc_range_xxx, Relative_freq_sc_for_cat_sc_timeoff$Mean_Shot_Frequency[lower], Relative_freq_sc_for_cat_sc_timeoff$Mean_Shot_Frequency[upper])) {
+      range <- (Relative_freq_sc_for_cat_sc_timeoff$Shot_Clock_Range[upper])
+    } 
+    lower = lower + 1 
+  }
+  return(range)
+}
+```
+
+```{r eval=FALSE, include=FALSE}
+# test above method
+y <- runif(1, 0, max(Relative_freq_sc$Mean_Shot_Frequency))
+  range = NULL
+  lower = 1
+  upper = 2
+  for (upper in 2:nrow(Relative_freq_sc)) {
+    if(inrange(y, Relative_freq_sc$Mean_Shot_Frequency[lower], Relative_freq_sc$Mean_Shot_Frequency[upper])) {
+      range <- (Relative_freq_sc$Shot_Clock_Range[upper])
+    } 
+    lower = lower + 1 
+  }
+```
+
+```{r Finding_exact_time_and_cat_off_clock_with_elapsed} 
+Finding_exact_time_and_cat_off_clock_with_elapsed <- function(Relative_freq_sc_time_off_clock, time_left_on_sc, game_time_left) {
+  cat_range_ex <- Relative_freq_sc_time_off_clock$Shot_Clock_Range
+  bounds <- NULL
+  for (inte in 1:length(cat_range_ex)) {
+    var1 <- unlist(strsplit(cat_range_ex[inte],'-'))
+    bounds <- rbind(bounds, data.frame(var1[1], var1[length(var1)]))
+  }
+  colnames(bounds)[1] <- "lower"
+  colnames(bounds)[2] <- "upper"
+  req_index <- nrow(bounds)
+  inte = 1
+  for (inte in 1:nrow(bounds)) {
+    if (bounds$lower[inte] < time_left_on_sc) {
+      req_index <- inte
+    }
+  }
+  range <- paste(as.character(bounds$lower[req_index]),sep='-',as.character(bounds$upper[req_index]))
+  df_of_times <- data.frame(range, 24-time_left_on_sc, game_time_left)
+  colnames(df_of_times)[1] = "range"
+  colnames(df_of_times)[2] = "time_left_on_sc"
+  colnames(df_of_times)[3] = "time_left_in_game"
+  return(df_of_times)
+}
+```
+
+```{r Finding_How_Much_Time_is_Off_Clock}
+Finding_How_Much_Time_is_Off_Clock <- function(Relative_freq_sc_time_off_clock, time_left_in_game_time_off_clock) {
+  # requires Relative_freq_sc, which can be found in Relative_Frequency_Dataframe_For_Shot_Clock
+
+  random_num_for_sc_range <- Simulate_For_Time_Off_Clock(Relative_freq_sc_time_off_clock)
+
+  # find range
+  range = NULL
+  lower = 1
+  upper = 2
+  range <- Finding_Categorical_SC_Time_Off(random_num_for_sc_range, Relative_freq_sc_time_off_clock)
+  cate_range <- unlist(strsplit(range, '-'))
+  lower_num <- as.numeric(cate_range[1])
+  upper_num <- as.numeric(cate_range[2])
+  sc_time_left <- as.integer(runif(1, lower_num, upper_num + 1))
+  sc_time_gone = 24 - sc_time_left
+  time_left_in_game_time_off_clock = time_left_in_game_time_off_clock - sc_time_gone
+  df_of_times <- data.frame(range, sc_time_gone, time_left_in_game_time_off_clock)
+  colnames(df_of_times)[1] = "range"
+  colnames(df_of_times)[2] = "time_left_on_sc"
+  colnames(df_of_times)[3] = "time_left_in_game"
+  return(df_of_times)
+}
+```
+
+```{r Find_random_FG_Type}
+Find_Random_FG_Type <- function(Relative_freq_fg_random_fg_type) {
+  random_num_for_fg_in_specificed_range_res <- runif(1, 0, max(Relative_freq_fg_random_fg_type$Frequency))
+  return(random_num_for_fg_in_specificed_range_res)
+}
+
+```
+
+```{r Determining_Shot_Result}
+
+Determining_Shot_Result <- function(shot_perc_result) {
+  shot_result <- "Miss"
+  random_num_for_result <- runif(1, 0, 100)
+  if (random_num_for_result <= shot_perc_result) {
+    shot_result <- "Make"
+  }
+  return(shot_result)
+}
+```
+
+```{r SHOT_TYPE_text }
+SHOT_TYPE_text <- function(shot_type_in_range_text) {
+  index = 1
+  if (shot_type_in_range_text == "Two-Point Shot") {
+    index = 3
+  } else {
+    index = 5
+  }
+  return(index)
+}
+```
+
+```{r SHOT_RESULT_num_points}
+SHOT_RESULT_num_points <- function(points_possible_num, shot_result_num) {
+  point_result <- 0
+  ifelse(shot_result_num == "Make", point_result <- points_possible_num, point_result <- 0)
+  return(point_result)
+}
+```
+
+```{r Finding_specific_shot_type_and_result_in_range}
+Finding_specific_shot_type_and_result_in_range <- function(random_num_for_fg_in_specificed_range_x, Relative_freq_fg_specific_st_and_res_inrange) {
+  shot_type_in_range <- ifelse(inrange(random_num_for_fg_in_specificed_range_x, Relative_freq_fg_specific_st_and_res_inrange$Frequency[1], Relative_freq_fg_specific_st_and_res_inrange$Frequency[2]), "Three-Point Shot", "Two-Point Shot")
+  return(shot_type_in_range)
+}
+```
+
+```{r text_shot_type_to_num_possible_points}
+text_shot_type_to_num_possible_points <- function(shot_type_in_range_text) {
+  points_possible <- 0
+  ifelse(shot_type_in_range_text == "Two-Point Shot", points_possible <- 2, points_possible <- 3)
+  return(points_possible)
+}
+```
+
+# Full Methods for Simulation
+
+## Normal
+```{r single_possession_normal_w_fouls}
+single_possession_normal_w_fouls <- function(mean_fg_stats_nfouls, time_left_in_game_nfouls, Relative_freq_sc_nfouls, team1_nfouls, team2_nfouls, offensiveTeam_nfouls, nba_shot_clock_normal) {
+  ranged_fg <- NULL
+  score_and_time_dataframe <- NULL
+  random_ft_num <- NULL
+  if (time_left_in_game_nfouls <= 24) {
+    if (offensiveTeam_nfouls == "team1_nfouls" && team1_nfouls >= team2_nfouls) {
+      # print("team1_nfouls ball")
+      if (team2_nfouls < team1_nfouls) {
+        # print("team2_nfouls FOUL")
+        if (time_left_in_game_nfouls > 5){
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 2
+        } else {
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 1
+        } 
+        ft_result <- 0
+        for (ft_i in 1:2) {
+          random_ft_num <- runif(1, 0, 1)
+          if (random_ft_num <= average_ft_perc) {
+            ft_result <- ft_result + 1
+            # print("team1_nfouls ft make")
+          }
+        }
+        team1_nfouls <- team1_nfouls + ft_result
+        score_and_time_dataframe <- data.frame("Free Throw", ft_result, "Untimed", time_left_in_game_nfouls, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[1] <- "shot_type_in_range"
+        colnames(score_and_time_dataframe)[2] <- "shot_result"
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else if (team2_nfouls == team1_nfouls) {
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        
+        # Finding_specific_shot_type_and_result_in_range(k, kk)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } 
+    } else if (offensiveTeam_nfouls == "team1_nfouls" && team1_nfouls < team2_nfouls) {
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+    } else if (offensiveTeam_nfouls == "team2_nfouls" && team2_nfouls >= team1_nfouls) {
+      # print("team2_nfouls ball")
+      if (team1_nfouls < team2_nfouls) {
+        # print("team1_nfouls FOUL")
+        if (time_left_in_game_nfouls > 5){
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 2
+        } else {
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 1
+        } 
+        ft_result <- 0
+        for (ft_i in 1:2) {
+          random_ft_num <- runif(1, 0, 1)
+          if (random_ft_num <= average_ft_perc) {
+            ft_result <- ft_result + 1
+            # print("team2_nfouls ft make")
+          }
+        }
+        team2_nfouls <- team2_nfouls + ft_result
+        score_and_time_dataframe <- data.frame("Free Throw", ft_result, "Untimed", time_left_in_game_nfouls, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[1] <- "shot_type_in_range"
+        colnames(score_and_time_dataframe)[2] <- "shot_result"
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else if (team1_nfouls == team2_nfouls){
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    } else if (offensiveTeam_nfouls == "team2_nfouls" && team2_nfouls < team1_nfouls) {
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+    }
+  # below } ends if statement: time is <= 24
+  } else {
+    # print("time over 24")
+    # check if hold ball in if else 
+    if (offensiveTeam_nfouls == "team1_nfouls") {
+      # print("team1_nfouls offense")
+      if (team1_nfouls > team2_nfouls) {
+        # hold ball
+        # print("team1_nfouls winning, holding ball")
+        time_elapsed_while_holding <- as.integer(runif(1, 11, 23))
+        sc_time_left <- 24-time_elapsed_while_holding
+        time_left_in_game_nfouls <- time_left_in_game_nfouls - time_elapsed_while_holding
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock_elapsed(nba_shot_clock_normal, sc_time_left)
+        df_of_times <- Finding_exact_time_and_cat_off_clock_with_elapsed(Relative_freq_sc_nfouls, sc_time_left, time_left_in_game_nfouls)
+        # ignore finding how much time is off clock
+        # continue sim
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else {
+        # print("team1_nfouls losing, not fouling")
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    } else {
+      # print("team2_nfouls on offense")
+      # team1_nfouls <- 0
+      # team2_nfouls <- 3
+      if (team2_nfouls > team1_nfouls) {
+        # print("team2_nfouls winning, holding ball")
+        # hold ball
+        time_elapsed_while_holding <- as.integer(runif(1, 11, 23))
+        sc_time_left <- 24-time_elapsed_while_holding
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock_elapsed(nba_shot_clock_normal, sc_time_left)
+        time_left_in_game_nfouls <- time_left_in_game_nfouls - time_elapsed_while_holding
+        df_of_times <- Finding_exact_time_and_cat_off_clock_with_elapsed(Relative_freq_sc_nfouls, sc_time_left, time_left_in_game_nfouls)
+        # ignore finding how much time is off clock
+        # continue sim
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else {
+        # print("team2_nfouls losing, not fouling")
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    }
+  }
+  return(score_and_time_dataframe)
+}
+```
+
+## Three-Pointers Only
+```{r single_possession_threes_w_fouls}
+single_possession_threes_w_fouls <- function(mean_fg_stats_nfouls, time_left_in_game_nfouls, Relative_freq_sc_nfouls, team1_nfouls, team2_nfouls, offensiveTeam_nfouls, nba_shot_clock_normal) {
+  mean_three_pt_fstats <- mean_fg_stats_nfouls %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+  ranged_fg <- NULL
+  score_and_time_dataframe <- NULL
+  random_ft_num <- NULL
+  if (time_left_in_game_nfouls <= 24) {
+    if (offensiveTeam_nfouls == "team1_nfouls" && team1_nfouls >= team2_nfouls) {
+      # print("team1_nfouls ball")
+      if (team2_nfouls < team1_nfouls) {
+        # print("team2_nfouls FOUL")
+        if (time_left_in_game_nfouls > 5){
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 2
+        } else {
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 1
+        } 
+        ft_result <- 0
+        for (ft_i in 1:2) {
+          random_ft_num <- runif(1, 0, 1)
+          if (random_ft_num <= average_ft_perc) {
+            ft_result <- ft_result + 1
+            # print("team1_nfouls ft make")
+          }
+        }
+        team1_nfouls <- team1_nfouls + ft_result
+        score_and_time_dataframe <- data.frame("Free Throw", ft_result, "Untimed", time_left_in_game_nfouls, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[1] <- "shot_type_in_range"
+        colnames(score_and_time_dataframe)[2] <- "shot_result"
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else if (team2_nfouls == team1_nfouls) {
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_three_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+        possible_points <- 3
+        shot_perc <- ranged_fg$`Three-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Three-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } 
+    } else if (offensiveTeam_nfouls == "team1_nfouls" && team1_nfouls < team2_nfouls) {
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_three_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+        possible_points <- 3
+        shot_perc <- ranged_fg$`Three-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Three-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+    } else if (offensiveTeam_nfouls == "team2_nfouls" && team2_nfouls >= team1_nfouls) {
+      # print("team2_nfouls ball")
+      if (team1_nfouls < team2_nfouls) {
+        # print("team1_nfouls FOUL")
+        if (time_left_in_game_nfouls > 5){
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 2
+        } else {
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 1
+        } 
+        ft_result <- 0
+        for (ft_i in 1:2) {
+          random_ft_num <- runif(1, 0, 1)
+          if (random_ft_num <= average_ft_perc) {
+            ft_result <- ft_result + 1
+            # print("team2_nfouls ft make")
+          }
+        }
+        team2_nfouls <- team2_nfouls + ft_result
+        score_and_time_dataframe <- data.frame("Free Throw", ft_result, "Untimed", time_left_in_game_nfouls, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[1] <- "shot_type_in_range"
+        colnames(score_and_time_dataframe)[2] <- "shot_result"
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else if (team1_nfouls == team2_nfouls){
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } 
+    } else if (offensiveTeam_nfouls == "team2_nfouls" && team2_nfouls < team1_nfouls) {
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+    }
+  # below } ends if statement: time is <= 24
+  } else {
+    # print("time over 24")
+    # check if hold ball in if else 
+    if (offensiveTeam_nfouls == "team1_nfouls") {
+      # print("team1_nfouls offense")
+      if (team1_nfouls > team2_nfouls) {
+        # hold ball
+        # print("team1_nfouls winning, holding ball")
+        time_elapsed_while_holding <- as.integer(runif(1, 11, 23))
+        sc_time_left <- 24-time_elapsed_while_holding
+        time_left_in_game_nfouls <- time_left_in_game_nfouls - time_elapsed_while_holding
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock_elapsed(nba_shot_clock_normal, sc_time_left)
+        df_of_times <- Finding_exact_time_and_cat_off_clock_with_elapsed(Relative_freq_sc_nfouls, sc_time_left, time_left_in_game_nfouls)
+        # ignore finding how much time is off clock
+        # continue sim
+        # play as sim says
+        ranged_fg <- mean_three_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+        possible_points <- 3
+        shot_perc <- ranged_fg$`Three-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Three-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else {
+        # print("team1_nfouls losing, not fouling")
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_three_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+        possible_points <- 3
+        shot_perc <- ranged_fg$`Three-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Three-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    } else {
+      # print("team2_nfouls on offense")
+      # team1_nfouls <- 0
+      # team2_nfouls <- 3
+      if (team2_nfouls > team1_nfouls) {
+        # print("team2_nfouls winning, holding ball")
+        # hold ball
+        time_elapsed_while_holding <- as.integer(runif(1, 11, 23))
+        sc_time_left <- 24-time_elapsed_while_holding
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock_elapsed(nba_shot_clock_normal, sc_time_left)
+        time_left_in_game_nfouls <- time_left_in_game_nfouls - time_elapsed_while_holding
+        df_of_times <- Finding_exact_time_and_cat_off_clock_with_elapsed(Relative_freq_sc_nfouls, sc_time_left, time_left_in_game_nfouls)
+        # ignore finding how much time is off clock
+        # continue sim
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else {
+        # team 2 ball
+        # print("team2_nfouls losing, not fouling")
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    }
+  }
+  return(score_and_time_dataframe)
+}
+```
+
+## Two-Pointers Only
+```{r single_possession_twos_w_fouls}
+single_possession_twos_w_fouls <- function(mean_fg_stats_nfouls, time_left_in_game_nfouls, Relative_freq_sc_nfouls, team1_nfouls, team2_nfouls, offensiveTeam_nfouls, nba_shot_clock_normal) {
+  mean_two_pt_fstats <- mean_fg_stats_nfouls %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+  ranged_fg <- NULL
+  score_and_time_dataframe <- NULL
+  random_ft_num <- NULL
+  if (time_left_in_game_nfouls <= 24) {
+    if (offensiveTeam_nfouls == "team1_nfouls" && team1_nfouls >= team2_nfouls) {
+      # print("team1_nfouls ball")
+      if (team2_nfouls < team1_nfouls) {
+        # print("team2_nfouls FOUL")
+        if (time_left_in_game_nfouls > 5){
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 2
+        } else {
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 1
+        } 
+        ft_result <- 0
+        for (ft_i in 1:2) {
+          random_ft_num <- runif(1, 0, 1)
+          if (random_ft_num <= average_ft_perc) {
+            ft_result <- ft_result + 1
+            # print("team1_nfouls ft make")
+          }
+        }
+        team1_nfouls <- team1_nfouls + ft_result
+        score_and_time_dataframe <- data.frame("Free Throw", ft_result, "Untimed", time_left_in_game_nfouls, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[1] <- "shot_type_in_range"
+        colnames(score_and_time_dataframe)[2] <- "shot_result"
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else if (team2_nfouls == team1_nfouls) {
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        
+        # y <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock, 18)
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_two_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+        possible_points <- 2
+        shot_perc <- ranged_fg$`Two-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Two-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } 
+    } else if (offensiveTeam_nfouls == "team1_nfouls" && team1_nfouls < team2_nfouls) {
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_two_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+        possible_points <- 2
+        shot_perc <- ranged_fg$`Two-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Two-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+    } else if (offensiveTeam_nfouls == "team2_nfouls" && team2_nfouls >= team1_nfouls) {
+      # print("team2_nfouls ball")
+      if (team1_nfouls < team2_nfouls) {
+        # print("team1_nfouls FOUL")
+        if (time_left_in_game_nfouls > 5){
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 2
+        } else {
+          time_left_in_game_nfouls <- time_left_in_game_nfouls - 1
+        } 
+        ft_result <- 0
+        for (ft_i in 1:2) {
+          random_ft_num <- runif(1, 0, 1)
+          if (random_ft_num <= average_ft_perc) {
+            ft_result <- ft_result + 1
+            # print("team2_nfouls ft make")
+          }
+        }
+        team2_nfouls <- team2_nfouls + ft_result
+        score_and_time_dataframe <- data.frame("Free Throw", ft_result, "Untimed", time_left_in_game_nfouls, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[1] <- "shot_type_in_range"
+        colnames(score_and_time_dataframe)[2] <- "shot_result"
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else if (team1_nfouls == team2_nfouls){
+        # make new relative freq df for shortened time and continue (Making_new_relative_frequency_table_for_shot_clock)
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } 
+    } else if (offensiveTeam_nfouls == "team2_nfouls" && team2_nfouls < team1_nfouls) {
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+    }
+  # below } ends if statement: time is <= 24
+  } else {
+    # print("time over 24")
+    # check if hold ball in if else 
+    if (offensiveTeam_nfouls == "team1_nfouls") {
+      # print("team1_nfouls offense")
+      if (team1_nfouls > team2_nfouls) {
+        # hold ball
+        # print("team1_nfouls winning, holding ball")
+        time_elapsed_while_holding <- as.integer(runif(1, 11, 23))
+        sc_time_left <- 24-time_elapsed_while_holding
+        time_left_in_game_nfouls <- time_left_in_game_nfouls - time_elapsed_while_holding
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock_elapsed(nba_shot_clock_normal, sc_time_left)
+        df_of_times <- Finding_exact_time_and_cat_off_clock_with_elapsed(Relative_freq_sc_nfouls, sc_time_left, time_left_in_game_nfouls)
+        # ignore finding how much time is off clock
+        # continue sim
+        # play as sim says
+        # print(df_of_times$range)
+        ranged_fg <- mean_two_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+        possible_points <- 2
+        shot_perc <- ranged_fg$`Two-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Two-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else {
+        # print("team1_nfouls losing, not fouling")
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock_normal, time_left_in_game_nfouls)
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        # print(df_of_times$range)
+        ranged_fg <- mean_two_pt_fstats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range) %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+        possible_points <- 2
+        shot_perc <- ranged_fg$`Two-Point Shot Percentage`
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team1_nfouls = team1_nfouls + point_result
+        shot_type_in_range <- "Two-Point Shot"
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    } else {
+      # print("team2_nfouls on offense")
+      # team1_nfouls <- 0
+      # team2_nfouls <- 3
+      if (team2_nfouls > team1_nfouls) {
+        # print("team2_nfouls winning, holding ball")
+        # hold ball
+        time_elapsed_while_holding <- as.integer(runif(1, 11, 23))
+        sc_time_left <- 24-time_elapsed_while_holding
+        Relative_freq_sc_nfouls <- Making_new_relative_frequency_table_for_shot_clock_elapsed(nba_shot_clock_normal, sc_time_left)
+        time_left_in_game_nfouls <- time_left_in_game_nfouls - time_elapsed_while_holding
+        df_of_times <- Finding_exact_time_and_cat_off_clock_with_elapsed(Relative_freq_sc_nfouls, sc_time_left, time_left_in_game_nfouls)
+        # ignore finding how much time is off clock
+        # continue sim
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      } else {
+        # team 2 ball
+        # print("team2_nfouls losing, not fouling")
+        df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc_nfouls, time_left_in_game_nfouls)
+        # play as sim says
+        ranged_fg <- mean_fg_stats_nfouls %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+        Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+        random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+        shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+        possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+        index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+        shot_perc <- ranged_fg[, index_for_specific_range]
+        shot_result <- Determining_Shot_Result(shot_perc)
+        point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+        team2_nfouls = team2_nfouls + point_result
+        score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam_nfouls, team1_nfouls, team2_nfouls)
+        colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+        colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+      }
+    }
+  }
+  return(score_and_time_dataframe)
+}
+```
+
+# Reference Methods for Simulation
+
+```{r single_possession_normal, eval=FALSE, include=FALSE}
+single_possession_normal <- function(mean_fg_stats, time_left_in_game, Relative_freq_sc, team1, team2, offensiveTeam) {
+# mean_fg_stats: shows mean data in 2pt shot freq, 2pt shot%, 3pt shot freq, 3pt shot% grouped by shot clock range. used to find frequency and percentage at each shot clock range
+# Relative_freq_sc: shows relative mean shot frequency for all shot clock ranges for simulation
+  if (time_left_in_game < 24) {
+    Relative_freq_sc <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock, time_left_in_game)
+  }
+  # takes time off clock
+  df_of_times <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc, time_left_in_game)
+  ranged_fg <- mean_fg_stats %>% filter(SHOT_CLOCK_RANGE == df_of_times$range)
+  Relative_freq_fg <- Making_Relative_Frequency_Dataframe_For_FGs(ranged_fg)
+  random_num_for_fg_in_specificed_range <- Find_Random_FG_Type(Relative_freq_fg)
+  shot_type_in_range <- Finding_specific_shot_type_and_result_in_range(random_num_for_fg_in_specificed_range, Relative_freq_fg)
+  possible_points <- text_shot_type_to_num_possible_points(shot_type_in_range)
+  index_for_specific_range <- SHOT_TYPE_text(shot_type_in_range)
+  shot_perc <- ranged_fg[, index_for_specific_range]
+  shot_result <- Determining_Shot_Result(shot_perc)
+  point_result <- SHOT_RESULT_num_points(possible_points, shot_result)
+  if (offensiveTeam == "team1") {
+    team1 = team1 + point_result
+  } else {
+    team2 = team2 + point_result
+  }
+  score_and_time_dataframe <- data.frame(shot_type_in_range, shot_result, ranged_fg$SHOT_CLOCK_RANGE, df_of_times$time_left_in_game, offensiveTeam, team1, team2)
+  colnames(score_and_time_dataframe)[3] <- "SHOT_CLOCK_RANGE"
+    colnames(score_and_time_dataframe)[4] <- "time_left_in_game"
+  return(score_and_time_dataframe)
+}
+```
+
+```{r single_possession_three, eval=FALSE, include=FALSE}
+single_possession_three_only <- function(mean_fg_stats, time_left_in_game, Relative_freq_sc, team1, team2, offensiveTeam) {
+  # time_left_in_game <- 47
+  mean_three_pt_stats <- mean_fg_stats %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+  if (time_left_in_game < 24) {
+    Relative_freq_sc <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock, time_left_in_game)
+  }
+  df_of_times_3 <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc, time_left_in_game)
+  ranged_3fg <- mean_three_pt_stats %>% filter(SHOT_CLOCK_RANGE == df_of_times_3$range)
+  possible_points_3 <- 3
+  shot_perc <- ranged_3fg$`Three-Point Shot Percentage`
+  shot_result <- Determining_Shot_Result(shot_perc)
+  point_result <- SHOT_RESULT_num_points(possible_points_3, shot_result)
+  if (offensiveTeam == "team1") {
+    team1 = team1 + point_result
+  } else {
+    team2 = team2 + point_result
+  }
+  score_and_time_dataframe_three <- data.frame("Three-Point Shot", shot_result, ranged_3fg$SHOT_CLOCK_RANGE, df_of_times_3$time_left_in_game, offensiveTeam, team1, team2)
+  colnames(score_and_time_dataframe_three)[1] = "shot_type_in_range"
+  return(score_and_time_dataframe_three)
+}
+```
+
+```{r single_possession_two, eval=FALSE, include=FALSE}
+single_possession_two_only <- function(mean_fg_stats, time_left_in_game, Relative_freq_sc, team1, team2, offensiveTeam) {
+  # time_left_in_game <- 47
+  mean_two_pt_stats <- mean_fg_stats %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+  if (time_left_in_game_3 < 24) {
+    Relative_freq_sc <- Making_new_relative_frequency_table_for_shot_clock(nba_shot_clock, time_left_in_game)
+  }
+  df_of_times_2 <- Finding_How_Much_Time_is_Off_Clock(Relative_freq_sc, time_left_in_game)
+  ranged_2fg <- mean_two_pt_stats %>% filter(SHOT_CLOCK_RANGE == df_of_times_2$range)
+  possible_points_2 <- 2
+  shot_perc2 <- ranged_2fg$`Two-Point Shot Percentage`
+  
+  shot_result_2 <- Determining_Shot_Result(shot_perc2)
+  point_result_2 <- SHOT_RESULT_num_points(possible_points_2, shot_result_2)
+  if (offensiveTeam == "team1") {
+    team1 = team1 + point_result_2
+  } else {
+    team2 = team2 + point_result_2
+  }
+  score_and_time_dataframe_two <- data.frame("Two-Point Shot", shot_result, ranged_2fg$SHOT_CLOCK_RANGE, df_of_times_2$time_left_in_game, offensiveTeam, team1, team2)
+  colnames(score_and_time_dataframe_three)[1] = "shot_type_in_range"
+  return(score_and_time_dataframe_two)
+}
+```
+
+
+# Single Game Simulation - Normal
+
+```{r MAIN_normal, eval=FALSE, include=FALSE}
+# One minute in game, team1 is down two to team2 with a full shot clock
+time_left_in_game <- 60
+sc_time_left <- 24
+team1_main = 0
+team2_main = 3
+chosen_team = "team1"
+offensivenum = 1
+scores_and_time <- NULL
+team2_minus_team1_mov <- NULL
+scores_and_time_full_dataframe <- NULL
+for (i in 1:100) {
+  while (time_left_in_game > 1) {
+    scores_and_time <- single_possession_normal(mean_fg_stats = mean_fg_stats, time_left_in_game = time_left_in_game, Relative_freq_sc = Relative_freq_sc, team1 = team1_main, team2 = team2_main, offensiveTeam = chosen_team)
+    scores_and_time <- scores_and_time %>% mutate(gameID = i)
+    time_left_in_game <- scores_and_time$df_of_times.time_left_in_game - 1
+    offensivenum = offensivenum + 1
+    if (offensivenum %% 2 == 1) {
+      chosen_team = "team1"
+    } else {
+      chosen_team = "team2"
+    }
+    team1_main = scores_and_time$team1
+    team2_main = scores_and_time$team2
+    scores_and_time_full_dataframe <- rbind(scores_and_time_full_dataframe, scores_and_time)
+  }
+  # 0 = tie, positive = team2 wins, negative = team1 wins
+  team2_minus_team1_mov[i] <- scores_and_time$team2 - scores_and_time$team1
+  scores_and_time <- NULL
+  team1_main <- 0
+  team2_main <- 2
+  chosen_team = "team1"
+  offensivenum = 1
+  time_left_in_game <- 60
+  sc_time_left <- 24
+}
+sum(team2_minus_team1_mov <= 0)
+# View(scores_and_time_full_dataframe)
+```
+
+```{r MAIN_normal_w_fouls}
+# One minute in game, team1 is down three to team2 with a full shot clock
+# normal_sim <- function(time_left_in_game_normal, team1_main_score, team2_main_score, identifier) {
+  time_left_in_game <- 60
+  sc_time_left <- 24
+  # time_left_in_game <- time_left_in_game_normal
+  # team1_main = team1_main_score
+  # team2_main = team2_main_score
+  team1_main = 0
+  team2_main = 1
+  chosen_team = "team1_nfouls"
+  offensivenum = 1
+  scores_and_time <- NULL
+  team2_minus_team1_mov_wfouls <- NULL
+  scores_and_time_full_dataframe_wfouls <- NULL
+  for (i in 1:1000) {
+    while (time_left_in_game > 1) {
+      scores_and_time <- single_possession_normal_w_fouls(mean_fg_stats_nfouls = mean_fg_stats, time_left_in_game_nfouls = time_left_in_game, Relative_freq_sc_nfouls = Relative_freq_sc, team1_nfouls = team1_main, team2_nfouls = team2_main, offensiveTeam_nfouls = chosen_team, nba_shot_clock_normal = nba_shot_clock)
+      scores_and_time <- scores_and_time %>% mutate(gameID = i)
+      # colnames(score_and_time)[4] = "time_left_in_game"
+      time_left_in_game <- scores_and_time$time_left_in_game - 1
+      offensivenum = offensivenum + 1
+      if (offensivenum %% 2 == 1) {
+        chosen_team = "team1_nfouls"
+      } else {
+        chosen_team = "team2_nfouls"
+      }
+      team1_main = scores_and_time$team1_nfouls
+      team2_main = scores_and_time$team2_nfouls
+      scores_and_time_full_dataframe_wfouls <- rbind(scores_and_time_full_dataframe_wfouls, scores_and_time)
+    }
+    # 0 = tie, positive = team2 wins, negative = team1 wins
+    team2_minus_team1_mov_wfouls[i] <- scores_and_time$team2_nfouls - scores_and_time$team1_nfouls
+    scores_and_time <- NULL
+    # team1_main = team1_main_score
+    # team2_main = team2_main_score
+    team1_main = 0
+    team2_main = 1
+    chosen_team = "team1_nfouls"
+    offensivenum = 1
+    time_left_in_game <- 60
+    # time_left_in_game <- time_left_in_game_normal
+    sc_time_left <- 24
+  }
+  nrow(scores_and_time_full_dataframe_wfouls %>% filter(shot_type_in_range == "Two-Point Shot", offensiveTeam_nfouls == "team2_nfouls"))
+  # nrow(scores_and_time_full_dataframe_wfouls %>% filter(shot_type_in_range == "Three-Point Shot", offensiveTeam_nfouls == "team2_nfouls"))
+  # View(scores_and_time_full_dataframe_wfouls)
+  # sum(team2_minus_team1_mov_wfouls <= 0)
+  # sum(team2_minus_team1_mov_wfouls < 0)
+  # team2_minus_team1_mov_wfouls <- data.frame(team2_minus_team1_mov_wfouls) %>% mutate(ID = identifier)
+ #  return(team2_minus_team1_mov_wfouls)
+# }
+```
+
+# Single Game Simulation - Three Pointers Only
+
+```{r MAIN_threes, eval=FALSE, include=FALSE}
+time_left_in_game_3 <- 60
+sc_time_left_3 <- 24
+team1_main_3 = 0
+team2_main_3 = 3
+chosen_team_3 = "team1"
+offensivenum_3 = 1
+scores_and_time_3 <- NULL
+team2_minus_team1_mov_3 <- NULL
+for (i in 1:100) {
+  while (time_left_in_game_3 > 1) {
+    if (chosen_team_3 == "team1") {
+      scores_and_time_3 <- single_possession_three_only(mean_fg_stats = mean_fg_stats, time_left_in_game = time_left_in_game_3, Relative_freq_sc = Relative_freq_sc, team1 = team1_main_3, team2 = team2_main_3, offensiveTeam = chosen_team_3)
+       time_left_in_game_3 <- scores_and_time_3$df_of_times_3.time_left_in_game - 1
+    } else {
+      scores_and_time_3 <- single_possession_normal(mean_fg_stats = mean_fg_stats, time_left_in_game = time_left_in_game_3, Relative_freq_sc = Relative_freq_sc, team1 = team1_main_3, team2 = team2_main_3, offensiveTeam = chosen_team_3)
+      time_left_in_game_3 <- scores_and_time_3$df_of_times.time_left_in_game - 1
+    }
+    offensivenum_3 = offensivenum_3 + 1
+    if (offensivenum_3 %% 2 == 1) {
+      chosen_team_3 = "team1"
+    } else {
+      chosen_team_3 = "team2"
+    }
+    team1_main_3 = scores_and_time_3$team1
+    team2_main_3 = scores_and_time_3$team2
+  }
+  # 0 = tie, positive = team2 wins, negative = team1 wins
+  team2_minus_team1_mov_3[i] <- scores_and_time_3$team2 - scores_and_time_3$team1
+  scores_and_time_3 <- NULL
+  team1_main_3 <- 0
+  team2_main_3 <- 2
+  chosen_team_3 = "team1"
+  offensivenum_3 = 1
+  time_left_in_game_3 <- 60
+  sc_time_left_3 <- 24
+}
+sum(team2_minus_team1_mov_3  <= 0)
+```
+
+```{r MAIN_threes_w_fouls}
+# One minute in game, team1 is down three to team2 with a full shot clock
+mean_three_pt_fstats <- mean_fg_stats %>% dplyr::select(SHOT_CLOCK_RANGE, `Three-Point Shot Frequency`, `Three-Point Shot Percentage`)
+i <- 1
+time_left_in_game3 <- 60
+sc_time_left <- 24
+team1_main3 = 0
+team2_main3 = 1
+chosen_team3 = "team1_nfouls"
+offensivenum3 = 1
+scores_and_time3 <- NULL
+team2_minus_team1_mov_wfouls3 <- NULL
+scores_and_time_full_dataframe_wfouls3 <- NULL
+for (i in 1:1000) {
+  while (time_left_in_game3 > 1) {
+    scores_and_time3 <- single_possession_threes_w_fouls(mean_fg_stats_nfouls = mean_fg_stats, time_left_in_game_nfouls = time_left_in_game3, Relative_freq_sc_nfouls = Relative_freq_sc, team1_nfouls = team1_main3, team2_nfouls = team2_main3, offensiveTeam_nfouls = chosen_team3, nba_shot_clock_normal = nba_shot_clock)
+    scores_and_time3 <- scores_and_time3 %>% mutate(gameID = i)
+    # colnames(score_and_time)[4] = "time_left_in_game"
+    time_left_in_game3 <- scores_and_time3$time_left_in_game - 1
+    
+    offensivenum3 = offensivenum3 + 1
+    if (offensivenum3 %% 2 == 1) {
+      chosen_team3 = "team1_nfouls"
+    } else {
+      chosen_team3 = "team2_nfouls"
+    }
+    team1_main3 = scores_and_time3$team1_nfouls
+    team2_main3 = scores_and_time3$team2_nfouls
+    scores_and_time_full_dataframe_wfouls3 <- rbind(scores_and_time_full_dataframe_wfouls3, scores_and_time3)
+  }
+  # 0 = tie, positive = team2 wins, negative = team1 wins
+  team2_minus_team1_mov_wfouls3[i] <- scores_and_time3$team2 - scores_and_time3$team1
+  scores_and_time3 <- NULL
+  team1_main3 <- 0
+  team2_main3 <- 1
+  chosen_team3 = "team1_nfouls"
+  offensivenum3 = 1
+  time_left_in_game3 <- 60
+  sc_time_left <- 24
+}
+nrow(scores_and_time_full_dataframe_wfouls3 %>% filter(shot_type_in_range == "Two-Point Shot", offensiveTeam_nfouls == "team2_nfouls"))
+nrow(scores_and_time_full_dataframe_wfouls3 %>% filter(shot_type_in_range == "Three-Point Shot", offensiveTeam_nfouls == "team2_nfouls"))
+# View(scores_and_time_full_dataframe_wfouls3)
+sum(team2_minus_team1_mov_wfouls3 <= 0)
+sum(team2_minus_team1_mov_wfouls3 < 0)
+```
+
+# Single Game Simulation - Two Pointers Only
+
+```{r MAIN_twos, eval=FALSE, include=FALSE}
+time_left_in_game_2 <- 60
+sc_time_left_2 <- 24
+team1_main_2 = 0
+team2_main_2 = 3
+chosen_team_2 = "team1"
+offensivenum_2 = 1
+scores_and_time_2 <- NULL
+team2_minus_team1_mov_2 <- NULL
+for (i in 1:100) {
+  while (time_left_in_game_2 > 1) {
+    if (chosen_team_2 == "team1") {
+      scores_and_time_2 <- single_possession_two_only(mean_fg_stats = mean_fg_stats, time_left_in_game = time_left_in_game_2, Relative_freq_sc = Relative_freq_sc, team1 = team1_main_2, team2 = team2_main_2, offensiveTeam = chosen_team_2)
+       time_left_in_game_2 <- scores_and_time_2$df_of_times_2.time_left_in_game - 1
+    } else {
+      scores_and_time_2 <- single_possession_normal(mean_fg_stats = mean_fg_stats, time_left_in_game = time_left_in_game_2, Relative_freq_sc = Relative_freq_sc, team1 = team1_main_2, team2 = team2_main_2, offensiveTeam = chosen_team_2)
+      time_left_in_game_2 <- scores_and_time_2$df_of_times.time_left_in_game - 1
+    }
+    offensivenum_2 = offensivenum_2 + 1
+    if (offensivenum_2 %% 2 == 1) {
+      chosen_team_2 = "team1"
+    } else {
+      chosen_team_2 = "team2"
+    }
+    team1_main_2 = scores_and_time_2$team1
+    team2_main_2 = scores_and_time_2$team2
+  }
+  # 0 = tie, positive = team2 wins, negative = team1 wins
+  team2_minus_team1_mov_2[i] <- scores_and_time_2$team2 - scores_and_time_2$team1
+  scores_and_time_2 <- NULL
+  team1_main_2 <- 0
+  team2_main_2 <- 2
+  chosen_team_2 = "team1"
+  offensivenum_2 = 1
+  time_left_in_game_2 <- 60
+  sc_time_left_2 <- 24
+}
+sum(team2_minus_team1_mov_2  <= 0)
+```
+
+```{r MAIN_twos_w_fouls}
+# One minute in game, team1 is down three to team2 with a full shot clock
+mean_two_pt_fstats <- mean_fg_stats %>% dplyr::select(SHOT_CLOCK_RANGE, `Two-Point Shot Frequency`, `Two-Point Shot Percentage`)
+i <- 1
+time_left_in_game2 <- 60
+sc_time_left <- 24
+team1_main2 = 0
+team2_main2 = 1
+chosen_team2 = "team1_nfouls"
+offensivenum2 = 1
+scores_and_time2 <- NULL
+team2_minus_team1_mov_wfouls2 <- NULL
+scores_and_time_full_dataframe_wfouls2 <- NULL
+for (i in 1:1000) {
+  while (time_left_in_game2 > 1) {
+    scores_and_time2 <- single_possession_threes_w_fouls(mean_fg_stats_nfouls = mean_fg_stats, time_left_in_game_nfouls = time_left_in_game2, Relative_freq_sc_nfouls = Relative_freq_sc, team1_nfouls = team1_main2, team2_nfouls = team2_main2, offensiveTeam_nfouls = chosen_team2, nba_shot_clock_normal = nba_shot_clock)
+    scores_and_time2 <- scores_and_time2 %>% mutate(gameID = i)
+    # colnames(score_and_time)[4] = "time_left_in_game"
+    time_left_in_game2 <- scores_and_time2$time_left_in_game - 1
+    
+    offensivenum2 = offensivenum2 + 1
+    if (offensivenum2 %% 2 == 1) {
+      chosen_team2 = "team1_nfouls"
+    } else {
+      chosen_team2 = "team2_nfouls"
+    }
+    team1_main2 = scores_and_time2$team1_nfouls
+    team2_main2 = scores_and_time2$team2_nfouls
+    scores_and_time_full_dataframe_wfouls2 <- rbind(scores_and_time_full_dataframe_wfouls2, scores_and_time2)
+  }
+  # 0 = tie, positive = team2 wins, negative = team1 wins
+  team2_minus_team1_mov_wfouls2[i] <- scores_and_time2$team2 - scores_and_time2$team1
+  scores_and_time2 <- NULL
+  team1_main2 <- 0
+  team2_main2 <- 1
+  chosen_team2 = "team1_nfouls"
+  offensivenum2 = 1
+  time_left_in_game2 <- 60
+  sc_time_left <- 24
+}
+nrow(scores_and_time_full_dataframe_wfouls2 %>% filter(shot_type_in_range == "Two-Point Shot", offensiveTeam_nfouls == "team2_nfouls"))
+nrow(scores_and_time_full_dataframe_wfouls2 %>% filter(shot_type_in_range == "Three-Point Shot", offensiveTeam_nfouls == "team2_nfouls"))
+# View(scores_and_time_full_dataframe_wfouls2)
+sum(team2_minus_team1_mov_wfouls2 <= 0)
+sum(team2_minus_team1_mov_wfouls2 < 0)
+```
+# Function to Run Multiple Times - Do Later
+
+# Other
+
+```{r eval=FALSE, include=FALSE}
+ggplot(data.frame(team2_minus_team1_mov), aes(x = team2_minus_team1_mov)) + geom_histogram() + stat_bin(binwidth = 1)
+
+sum(team2_minus_team1_mov <= 0)
+sum(team2_minus_team1_mov_3  <= 0)
+sum(team2_minus_team1_mov_2  <= 0)
+```
+
+```{r eval=FALSE, include=FALSE}
+ggplot(mean_shot_freq_at_shot_clock, aes(x = Shot_Clock_Range, y = Mean_Shot_Frequency)) + geom_point()
+mean_yeah <- mean_shot_freq_at_shot_clock
+colnames(mean_yeah)[1] = "SHOT_CLOCK_RANGE"
+colnames(mean_yeah)[2] = "FREQ"
+colnames(mean_yeah)[3] = "TEAM"
+mean_yeah$TEAM = "Mean"
+mean_yeah %>% dplyr::select(FREQ, SHOT_CLOCK_RANGE, TEAM)
+
+x76ers <- nba_shot_clock %>% filter(TEAM == "Philadelphia 76ers") %>% dplyr::select(FREQ, SHOT_CLOCK_RANGE, TEAM)
+XROCKETs <- nba_shot_clock %>% filter(TEAM == "Houston Rockets") %>% dplyr::select(FREQ, SHOT_CLOCK_RANGE, TEAM)
+tor <- nba_shot_clock %>% filter(TEAM == "Toronto Raptors") %>% dplyr::select(FREQ, SHOT_CLOCK_RANGE, TEAM)
+
+three_teams_and_mean <- rbind(x76ers, XROCKETs, tor, mean_yeah)
+
+ggplot(three_teams_and_mean, aes(x = SHOT_CLOCK_RANGE, y = FREQ, color = TEAM)) + geom_point()
+```
+
+
+
+
+# Full Analysis
+
+```{r Win_Tie_results_for_each}
+sum(team2_minus_team1_mov_wfouls <= 0)
+sum(team2_minus_team1_mov_wfouls3 <= 0)
+sum(team2_minus_team1_mov_wfouls2 <= 0)
+sum(team2_minus_team1_mov_wfouls < 0)
+sum(team2_minus_team1_mov_wfouls3 < 0)
+sum(team2_minus_team1_mov_wfouls2 < 0)
+sum(team2_minus_team1_mov_wfouls <= 0)/length(team2_minus_team1_mov_wfouls)
+sum(team2_minus_team1_mov_wfouls3 <= 0)/length(team2_minus_team1_mov_wfouls3)
+sum(team2_minus_team1_mov_wfouls2 <= 0)/length(team2_minus_team1_mov_wfouls2)
+sum(team2_minus_team1_mov_wfouls < 0)/length(team2_minus_team1_mov_wfouls)
+sum(team2_minus_team1_mov_wfouls3 < 0)/length(team2_minus_team1_mov_wfouls3)
+sum(team2_minus_team1_mov_wfouls2 < 0)/length(team2_minus_team1_mov_wfouls2)
+mean(team2_minus_team1_mov_wfouls)
+mean(team2_minus_team1_mov_wfouls3)
+mean(team2_minus_team1_mov_wfouls2)
+median(team2_minus_team1_mov_wfouls)
+median(team2_minus_team1_mov_wfouls3)
+median(team2_minus_team1_mov_wfouls2)
+sd(team2_minus_team1_mov_wfouls)
+sd(team2_minus_team1_mov_wfouls3)
+sd(team2_minus_team1_mov_wfouls2)
+```
+
+```{r Plotting_graphs}
+ggplot(data.frame(team2_minus_team1_mov_wfouls), aes(x = team2_minus_team1_mov_wfouls)) + geom_histogram() + stat_bin(binwidth = 1) + labs(title = "Team Two Margin of Victory When Both Teams Play Normally", subtitle = "Team One Starts Down One", x = "Team Two MOV") + geom_vline(xintercept = mean(team2_minus_team1_mov_wfouls), color = "red") 
+ggplot(data.frame(team2_minus_team1_mov_wfouls3), aes(x = team2_minus_team1_mov_wfouls3)) + geom_histogram() + stat_bin(binwidth = 1) + labs(title = "Team Two Margin of Victory When Team One Only Shoots Threes", subtitle = "Team One Starts Down One", x = "Team Two MOV") + geom_vline(xintercept = mean(team2_minus_team1_mov_wfouls3), color = "red")
+ggplot(data.frame(team2_minus_team1_mov_wfouls2), aes(x = team2_minus_team1_mov_wfouls2)) + geom_histogram() + stat_bin(binwidth = 1) + labs(title = "Team Two Margin of Victory When Team One Only Shoots Twos", subtitle = "Team One Starts Down One", x = "Team Two MOV") + geom_vline(xintercept = mean(team2_minus_team1_mov_wfouls2), color = "red")
+```
+
+```{r storing_data_down3}
+
+```
+
+```{r storing_data_down2}
+normal_down2_data
+threes_down2_data 
+twos_down2_data 
+```
+
+```{r storing_data_down1}
+normal_down1_data
+threes_down1_data
+twos_down1_data
+```
+
+
