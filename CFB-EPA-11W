@@ -1,0 +1,167 @@
+library(readxl)
+library(tidyverse)
+library(graphics)
+library(reshape2)
+X18_CFB_EPA_Excel <- read_excel("18_CFB_EPA_Excel 2.xlsx")
+# View(all_18_cfb_data)
+all_18_cfb_data <- X18_CFB_EPA_Excel
+colnames(all_18_cfb_data)[1] = "Row"
+
+# osu_off <- (all_18_cfb_data %>% filter(off_full_name == "Ohio State"))
+# missing postseason and rutgers 
+# unique(osu_off$defense)
+vec_of_types <- unique(all_18_cfb_data$play_type)
+pass_type <- c("Sack", "Pass Reception", "Pass Incompletion", "Passing Touchdown", "Pass Interception Return", 
+               "Interception Return Touchdown")
+rush_type <- c("Rush", "Rushing Touchdown", "Fumble Recovery (Opponent)", 
+               "Fumble Recovery (Own)", "Fumble Return Touchdown")
+all_18_cfb_data <- all_18_cfb_data %>% mutate(play_categorical_type = ifelse(play_type %in% pass_type, "pass", 
+                                                          ifelse(play_type %in% rush_type, "rush", "other")))
+osu_off <- (all_18_cfb_data %>% filter(off_full_name == "Ohio State"))
+all_18_cfb_data <- all_18_cfb_data %>% mutate(osu = ifelse(offense == "Ohio State", 1, 0))
+unique(all_18_cfb_data$defense_conference)
+power_five <- c("ACC", "SEC", "Pac-12", "Big Ten", "Big 12")
+p5_v_p5 <- (all_18_cfb_data %>% filter(defense_conference %in% power_five, offense_conference %in% power_five))
+p5 <- (all_18_cfb_data %>% filter(defense_conference %in% power_five | offense_conference %in% power_five))
+b10_offense <- (all_18_cfb_data %>% filter(offense_conference == "Big Ten"))
+osu_p5 <- p5_v_p5 %>% filter(offense == "Ohio State")
+total <- NULL
+i <- 1
+y <- NULL
+for (i in 1:length(vec_of_types)) {
+  y <- data.frame(vec_of_types[i], mean(all_18_cfb_data$play_type==vec_of_types[i]))
+  colnames(y)[1] = "Play Type"
+  colnames(y)[2] = "Average EPA"
+  total <- rbind(total, y)
+  y <- NULL
+}
+summary(lm(`Average EPA`~`Play Type`, total))
+summary(lm(EPA~play_type, p5_v_p5))
+summary(lm(EPA~play_type, osu_def))
+osu_lm <- lm(EPA ~ play_type, osu_off)
+summary(osu_lm)
+summary(lm(EPA ~ play_categorical_type, osu_off))
+summary(lm(EPA ~ play_categorical_type, all_18_cfb_data))
+summary(lm(EPA ~ play_categorical_type, p5_v_p5))
+summary(lm(EPA ~ play_categorical_type, osu_p5))
+summary(lm(EPA ~ play_categorical_type, b10_offense))
+ggplot(osu_off, aes(x = play_categorical_type, y = mean(EPA))) + geom_point()
+
+# Ohio State's EPA for pass is insanely good, run is insanely bad
+osu_off %>% filter(play_categorical_type == "pass") %>% summarize(mean(EPA))
+osu_off %>% filter(play_categorical_type == "rush") %>% summarize(mean(EPA))
+all_18_cfb_data %>% filter(play_categorical_type == "pass") %>% summarize(mean(EPA))
+all_18_cfb_data %>% filter(play_categorical_type == "rush") %>% summarize(mean(EPA))
+p5_v_p5 %>% filter(play_categorical_type == "pass") %>% summarize(mean(EPA))
+p5_v_p5 %>% filter(play_categorical_type == "rush") %>% summarize(mean(EPA))
+osu_p5 %>% filter(play_categorical_type == "pass") %>% summarize(mean(EPA))
+osu_p5 %>% filter(play_categorical_type == "rush") %>% summarize(mean(EPA))
+b10_offense %>% filter(play_categorical_type == "pass") %>% summarize(mean(EPA))
+b10_offense %>% filter(play_categorical_type == "rush") %>% summarize(mean(EPA))
+
+all_18_cfb_data %>% 
+  group_by(off_full_name) %>% 
+  summarise(mean(EPA))
+
+all_18_cfb_data_pass <- all_18_cfb_data %>% filter(play_categorical_type == "pass")
+all_18_cfb_data_rush <- all_18_cfb_data %>% filter(play_categorical_type == "rush")
+p5_v_p5_pass <- p5_v_p5 %>% filter(play_categorical_type == "pass")
+p5_v_p5_rush <- p5_v_p5 %>% filter(play_categorical_type == "rush")
+b10_offense_pass <- b10_offense %>% filter(play_categorical_type == "pass")
+b10_offense_rush <- b10_offense %>% filter(play_categorical_type == "rush")
+osu_off_pass <- osu_off %>% filter(play_categorical_type == "pass")
+osu_off_rush <- osu_off %>% filter(play_categorical_type == "rush")
+
+all_cfb_epa_by_off <- aggregate(all_18_cfb_data$EPA, by = list(all_18_cfb_data$offense), FUN = mean) %>% arrange(-x)
+all_cfb_epa_by_playtype <- aggregate(all_18_cfb_data$EPA, by = list(all_18_cfb_data$play_type), FUN = mean) %>% arrange(-x)
+all_cfb_epa_by_cat_playtype <- aggregate(all_18_cfb_data$EPA, by = list(all_18_cfb_data$play_categorical_type), 
+                                     FUN = mean) %>% arrange(-x)
+p5_epa_by_off <- aggregate(p5_v_p5$EPA, by = list(p5_v_p5$offense), FUN = mean) %>% arrange(-x)
+p5_epa_by_playtype <- aggregate(p5_v_p5$EPA, by = list(p5_v_p5$play_type), FUN = mean) %>% arrange(-x)
+p5_epa_by_cat_playtype <- aggregate(p5_v_p5$EPA, by = list(p5_v_p5$play_categorical_type), FUN = mean) %>% arrange(-x)
+b10_epa_by_off <- aggregate(b10_offense$EPA, by = list(b10_offense$offense), FUN = mean) %>% arrange(-x)
+b10_epa_by_playtype <- aggregate(b10_offense$EPA, by = list(b10_offense$play_type), FUN = mean) %>% arrange(-x)
+b10_epa_by_cat_playtype <- aggregate(b10_offense$EPA, by = list(b10_offense$play_categorical_type), 
+                                     FUN = mean) %>% arrange(-x)
+
+pass_cfb_epa_by_off <- aggregate(all_18_cfb_data_pass$EPA, by = list(all_18_cfb_data_pass$offense), FUN = mean) %>% 
+  arrange(-x)
+rush_cfb_epa_by_off <- aggregate(all_18_cfb_data_rush$EPA, by = list(all_18_cfb_data_rush$offense), FUN = mean) %>% 
+  arrange(-x)
+pass_p5_epa_by_off <- aggregate(p5_v_p5_pass$EPA, by = list(p5_v_p5_pass$offense), FUN = mean) %>% arrange(-x)
+rush_p5_epa_by_off <- aggregate(p5_v_p5_rush$EPA, by = list(p5_v_p5_rush$offense), FUN = mean) %>% arrange(-x)
+pass_b10_epa_by_off <- aggregate(b10_offense_pass$EPA, by = list(b10_offense_pass$offense), FUN = mean) %>% arrange(-x)
+rush_b10_epa_by_off <- aggregate(b10_offense_rush$EPA, by = list(b10_offense_rush$offense), FUN = mean) %>% arrange(-x)
+pass_osu_epa_by_def <- aggregate(osu_off_pass$EPA, by = list(osu_off_pass$defense), FUN = mean) %>% arrange(-x)
+rush_osu_epa_by_def <- aggregate(osu_off_rush$EPA, by = list(osu_off_rush$defense), FUN = mean) %>% arrange(-x)
+
+ggplot(osu_off, aes(x = id, y = (EPA))) + geom_bar(stat="identity")
+ggplot(b10_offense, aes(x = offense, y = mean(EPA))) + geom_bar(stat = "identity")
+ggplot(b10_epa_by_off, aes(x = Group.1, y = x)) + geom_bar(stat = "identity")
+ggplot(all_18_cfb_data, aes(x = EPA)) + geom_histogram() + geom_vline(aes(xintercept = mean(all_18_cfb_data$EPA)))
+sd(all_18_cfb_data$EPA)
+mean(all_18_cfb_data$EPA)
+ggplot(pass_p5_epa_by_off, aes(x = x, fill = (Group.1 == "Ohio State"))) + geom_histogram(binwidth = 0.05) + 
+  geom_vline(aes(xintercept = mean(x))) + scale_fill_manual(values = c("gray", "red")) +
+  xlab("EPA per Play") + ylab("Frequency") + labs(fill = "Ohio State?") + 
+  ggtitle("Ohio State's Passing Efficiency was Second to One") + theme_minimal()
+?scale_fill_manual
+aggregate(osu_off$EPA, by = list(osu_off$defense), FUN = mean) %>% arrange(-x)
+osu_wr <- c("Olave", "Dixon", "Mack", "Hill", "Campbell", "Dobbins", "Weber", 
+            "McLaurin", "Victor", "Berry", "Farrell", "McCall", "Saunders")
+i <- 1
+y < 1
+temp_df <- NULL
+total_df <- NULL
+x <- NULL
+# osu_pass_only <- osu_off %>% filter(play_categorical_type == "pass")
+for (i in 1:nrow(osu_pass_only)) {
+  x <- unlist(strsplit(osu_pass_only$play_text[i], " "))
+  for (y in 1:length(x)) {
+    if (x[y] %in% osu_wr) {
+      player <- x[y]
+      temp_df <- data.frame(osu_pass_only$offense[i], osu_pass_only$defense[i], osu_pass_only$offense_score[i], 
+                            osu_pass_only$defense_score[i], osu_pass_only$down[i], osu_pass_only$distance[i], 
+                            osu_pass_only$period[i], osu_pass_only$yard_line[i], osu_pass_only$yards_gained[i], 
+                            osu_pass_only$adjusted_yardline[i], osu_pass_only$EPA[i], osu_pass_only$play_type[i], 
+                            osu_pass_only$play_text[i], player)
+      total_df <- rbind(total_df, temp_df)
+      temp_df <- NULL
+      player <- NULL
+    }
+  }
+  y <- 1
+  x <- NULL
+}
+xxx <- total_df %>% filter(osu_pass_only.play_type.i. == "Pass Reception")
+wr_df <- aggregate(total_df$osu_pass_only.EPA.i., by = list(total_df$player), FUN = mean) %>% arrange(-x)
+xxx <- aggregate(xxx$osu_pass_only.play_type.i. =="Pass Reception", by = list(xxx$player), FUN = sum)
+colnames(xxx)[1] = "Player"
+colnames(xxx)[2] = "Receptions"
+xy <- data.frame(table(total_df$player))
+colnames(xy)[1] = "Player"
+colnames(wr_df)[1] = "Player"
+colnames(wr_df)[2] = "EPA/Target"
+xy$Player <- as.character(xy$Player)
+wr_df <- left_join(wr_df, xy, by = "Player")
+wr_df <- wr_df[, -4]
+wr_df <- left_join(wr_df, xxx, by = "Player")
+colnames(wr_df)[3] = "Targets"
+colnames(wr_df)[2] = "EPA/Target"
+
+# osu_def <- (all_18_cfb_data %>% filter(def_full_name == "Ohio State"))
+ggplot(wr_df, aes(x = Player, y = `EPA/Target`, fill = Targets)) + geom_bar(stat = "identity") + 
+  scale_fill_gradientn(colors = palette(c("lightgray", "gray50","gray1"))) + ylab("EPA/Target") +
+  ggtitle("Ohio State Receivers' EPA per Target") + theme_minimal() +
+  labs(caption = "The darker the bar, the more targets that player received.")
+
+sum(total_df$osu_pass_only.play_type.i.=="Passing Touchdown")
+sum(total_df$osu_pass_only.play_type.i.=="Pass Reception")
+sum(total_df$osu_pass_only.play_type.i.=="Pass Incompletion")
+
+ggplot(osu_off, aes(x = EPA, fill = "darkred")) + geom_histogram() + geom_vline(xintercept = mean(osu_off$EPA)) + 
+  labs(caption = "Please note that this data does not contain every single play from Ohio State's 2018 season.") +
+  ggtitle("Ohio State EPA") + ylab("Frequency") + theme_minimal() + theme(legend.position =  "none")
+ggplot(all_18_cfb_data, aes(x = EPA)) + geom_histogram() + geom_vline(xintercept = mean(all_18_cfb_data$EPA)) +
+  ggtitle("CFB EPA") + ylab("Frequency") + theme_minimal() + 
+  labs(caption = "Please note that this data does not contain every single play from the 2018 CFB season.") 
