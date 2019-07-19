@@ -41,7 +41,10 @@ mean_shot_freq_little_early_shot_clock_15 <- mean(little_early_shot_clock_15$FRE
 mean_shot_freq_average_shot_clock_7 <- mean(average_shot_clock_7$FREQ)
 mean_shot_freq_late_shot_clock_4 <- mean(late_shot_clock_4$FREQ)
 mean_shot_freq_very_late_shot_clock_0 <- mean(very_late_shot_clock_0$FREQ)
-x <- data.frame(c("22-24", "18-22", "15-18", "7-15", "4-7", "0-4"), c(mean_shot_freq_very_early_shot_clock_22, mean_shot_freq_early_shot_clock_18, mean_shot_freq_little_early_shot_clock_15, mean_shot_freq_average_shot_clock_7, mean_shot_freq_late_shot_clock_4, mean_shot_freq_very_late_shot_clock_0), c("Very Early", "Early", "Slightly Early", "Average", "Late", "Very Late"))
+x <- data.frame(c("22-24", "18-22", "15-18", "7-15", "4-7", "0-4"), 
+  c(mean_shot_freq_very_early_shot_clock_22, mean_shot_freq_early_shot_clock_18, mean_shot_freq_little_early_shot_clock_15, 
+  mean_shot_freq_average_shot_clock_7, mean_shot_freq_late_shot_clock_4, mean_shot_freq_very_late_shot_clock_0), 
+  c("Very Early", "Early", "Slightly Early", "Average", "Late", "Very Late"))
 colnames(x)[1] = "Shot_Clock_Range"
 colnames(x)[2] = "Mean_Shot_Frequency"
 colnames(x)[3] = "Categorial_Range"
@@ -52,18 +55,39 @@ mean_shot_freq_at_shot_clock <- x
 # requires mean_shot_freq_at_shot_clock, which can be found in Shot_clock_dataframe_distribution
 sc_NA_rf <- data.frame("NA", 0)
 colnames(sc_NA_rf)[1] = "Shot_Clock_Range"
-colnames(sc_NA_rf)[2] = "Mean_Shot_Frequency"
-sc_22_rf <- data.frame("22-24", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency))
+ colnames(sc_NA_rf)[2] = "Mean_Shot_Frequency"
+sc_22_rf <- data.frame("22-24", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% 
+  dplyr::select(Mean_Shot_Frequency))
 colnames(sc_22_rf)[1] = "Shot_Clock_Range"
-sc_18_rf <- data.frame("18-22", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency))
+sc_18_rf <- data.frame("18-22", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% 
+  dplyr::select(Mean_Shot_Frequency))
 colnames(sc_18_rf)[1] = "Shot_Clock_Range"
-sc_15_rf <- data.frame("15-18", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency))
+sc_15_rf <- data.frame("15-18", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% 
+  dplyr::select(Mean_Shot_Frequency))
 colnames(sc_15_rf)[1] = "Shot_Clock_Range"
-sc_7_rf <- data.frame("7-15", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% dplyr::select(Mean_Shot_Frequency))
+sc_7_rf <- data.frame("7-15", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% 
+  dplyr::select(Mean_Shot_Frequency))
 colnames(sc_7_rf)[1] = "Shot_Clock_Range"
-sc_4_rf <- data.frame("4-7", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "4-7") %>% dplyr::select(Mean_Shot_Frequency))
+sc_4_rf <- data.frame("4-7", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "4-7") %>% 
+  dplyr::select(Mean_Shot_Frequency))
 colnames(sc_4_rf)[1] = "Shot_Clock_Range"
-sc_0_rf <- data.frame("0-4", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "4-7") %>% dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "0-4") %>% dplyr::select(Mean_Shot_Frequency))
+sc_0_rf <- data.frame("0-4", mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "22-24") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "18-22") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "15-18") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "7-15") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "4-7") %>% 
+  dplyr::select(Mean_Shot_Frequency) + mean_shot_freq_at_shot_clock %>% filter(Shot_Clock_Range == "0-4") %>% 
+  dplyr::select(Mean_Shot_Frequency))
 colnames(sc_0_rf)[1] = "Shot_Clock_Range"
 
 Relative_freq_sc <- rbind(sc_NA_rf, sc_22_rf, sc_18_rf, sc_15_rf, sc_7_rf, sc_4_rf, sc_0_rf)
@@ -71,7 +95,8 @@ Relative_freq_sc <- rbind(sc_NA_rf, sc_22_rf, sc_18_rf, sc_15_rf, sc_7_rf, sc_4_
 ```
 
 ```{r All_FG_Stats_For_Shot_Clock_Ranges}
-mean_fg_stats <- nba_shot_clock %>% group_by(SHOT_CLOCK_RANGE) %>% summarize(mean(`X2FG FREQ`), mean(`X2FG%`), mean(`X3FG FREQ`), mean(`X3P%`))
+mean_fg_stats <- nba_shot_clock %>% group_by(SHOT_CLOCK_RANGE) %>% summarize(mean(`X2FG FREQ`), mean(`X2FG%`), 
+  mean(`X3FG FREQ`), mean(`X3P%`))
 colnames(mean_fg_stats)[2] = "Two-Point Shot Frequency"
 colnames(mean_fg_stats)[3] = "Two-Point Shot Percentage"
 colnames(mean_fg_stats)[4] = "Three-Point Shot Frequency"
@@ -81,10 +106,10 @@ View(mean_fg_stats)
 
 ```{r FT_percentage}
 
-  player_ft <- NBAPerGameStatistics(season = 2019) %>% dplyr::select(ft, fta, g)
-  player_ft <- player_ft %>% mutate(totalFTA = fta * g, totalFTM = ft * g)
-  player_total_ft_2018 <- player_ft %>% summarize(sum(totalFTM), sum(totalFTA))
-  average_ft_perc <- player_total_ft_2018$`sum(totalFTM)`/player_total_ft_2018$`sum(totalFTA)`
+ player_ft <- NBAPerGameStatistics(season = 2019) %>% dplyr::select(ft, fta, g)
+ player_ft <- player_ft %>% mutate(totalFTA = fta * g, totalFTM = ft * g)
+ player_total_ft_2018 <- player_ft %>% summarize(sum(totalFTM), sum(totalFTA))
+ average_ft_perc <- player_total_ft_2018$`sum(totalFTM)`/player_total_ft_2018$`sum(totalFTA)`
 
 
 ```
