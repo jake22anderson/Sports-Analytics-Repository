@@ -102,7 +102,7 @@ master_schedule_and_predict <- master_schedule %>% left_join(x = master_predict,
 
 # naive checking
 master_schedule_and_predict <- master_schedule_and_predict %>% 
-  mutate(predict_home_win = ifelse(Home_Win_Prob > 0.5, TRUE, FALSE))
+  mutate(predict_home_win_naive = ifelse(Home_Win_Prob > 0.5, TRUE, FALSE))
 master_schedule_and_predict <-master_schedule_and_predict %>% 
   mutate(correct_winner_predicted = ifelse(predict_home_win_naive == home_win, TRUE, FALSE))
 sum(master_schedule_and_predict$correct_winner_predicted)/nrow(master_schedule_and_predict)
@@ -132,7 +132,7 @@ master_schedule_predict_sims <- master_schedule_predict_sims %>%
 master_schedule_predict_sims <- master_schedule_predict_sims %>% 
   mutate(sims_predict_correct_winner = ifelse(sim_predicted_home_to_win == home_win, TRUE, FALSE))
 sum(master_schedule_predict_sims$sims_predict_correct_winner)/nrow(master_schedule_predict_sims)
-# master_schedule_predict_sims %>% dplyr::select(home_win, predict_home_win, sim_predicted_home_to_win, 
+# master_schedule_predict_sims %>% dplyr::select(home_win, predict_home_win_naive, sim_predicted_home_to_win, 
 #                                                correct_winner_predicted, sims_predict_correct_winner)
 # model predicts about 64% of winners corrrectly
 # start the analysis/sims
