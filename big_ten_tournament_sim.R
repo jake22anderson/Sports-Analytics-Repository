@@ -1,6 +1,7 @@
 library(tidyverse)
 library(rvest)
 library(ncaahoopR)
+library(bigballR)
 
 # get the data
 url <- "https://kenpom.com/"
